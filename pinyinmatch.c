@@ -164,23 +164,36 @@ int match_line_with_keyword(const char *line, int line_length, const char *keywo
         return match_hanzi_count;
 }
 
+void show_usage(char* bin) {
+    printf("USAGE: %s [options] keyword\n\n", bin);
+    printf("options:\n");
+    printf("\t-h --help              show this usage document\n");
+    printf("\t-c --show_match_count  show match count\n");
+    printf("\t-f --firstletter       first letter\n");
+    printf("\t-F --firstletter-only  first letter only\n");
+}
+
+void guide_to_help(char* bin) {
+    printf("%s -h for help\n", bin);
+}
+
 int main(int argc, char **argv)
 {
     int show_match_count = 0;
     int match_firstletter = 0;
     int match_firstletter_only = 0;
 
+    static struct option long_options[] =
+    {
+        {"help", no_argument, NULL, 'h'},
+        {"show-match-count", no_argument, NULL, 'c'},
+        {"firstletter", no_argument, NULL, 'f'},
+        {"firstletter-only", no_argument, NULL, 'F'},
+        {0,0,0,0}
+    };
+
     while(1)
     {
-        static struct option long_options[] =  
-        {
-            {"help", no_argument, NULL, 'h'}, 
-            {"show-match-count", no_argument, NULL, 'c'},
-            {"firstletter", no_argument, NULL, 'f'},
-            {"firstletter-only", no_argument, NULL, 'F'},
-            {0,0,0,0}
-        };
-    
         int option_index = 0;
         int c = getopt_long(argc, argv, "hcfF", long_options, &option_index);
 
@@ -189,7 +202,8 @@ int main(int argc, char **argv)
         switch(c)
         {
             case 'h':
-                printf("help\n");
+                show_usage(argv[0]);
+                return 0;
                 break;
             case 'c':
                 show_match_count = 1;
@@ -201,6 +215,8 @@ int main(int argc, char **argv)
                 match_firstletter_only = 1;
                 break;
             default:
+                guide_to_help(argv[0]);
+                return 1;
                 break;
         }
     }
@@ -208,6 +224,7 @@ int main(int argc, char **argv)
     if (optind >= argc)
     {
         fprintf(stderr, "keyword missing\n");
+        guide_to_help(argv[0]);
         return 1;
     }
     
