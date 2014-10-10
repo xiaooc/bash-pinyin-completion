@@ -44,9 +44,9 @@ _py_completion()
     local dname_real bname_real dname bname tmp tmp2 sep
     local -a rt
 #目录名部分
-    dname="$(dirname "$cur")";
+    dname="$(dirname -- "$cur")";
 #文件名部分
-    bname="$(basename "$cur")";
+    bname="$(basename -- "$cur")";
 
 #cd "./
     if [[ "${dname:0:1}" == "\"" ]]; then
@@ -74,13 +74,13 @@ _py_completion()
 
     if [[ "$1" == "-d" ]];then
         rt=(${rt[@]-} $(
-        find . -maxdepth 1 -type d -print|cut -b 3-|pinyinmatch -f -c "$bname_real"|grep -v "^0"|cut -c 3-|while read -r tmp;do 
+        find . -maxdepth 1 -type d -print|cut -b 3-|pinyinmatch -f -c -- "$bname_real"|grep -v "^0"|cut -c 3-|while read -r tmp;do 
         printf '%s%s%s\n' "$dname_real" "$sep" "$tmp"
         done
         ))
     else
         rt=(${rt[@]-} $(
-        find . -maxdepth 1 -print|cut -b 3-|pinyinmatch -f -c "$bname_real"|grep -v "^0"|cut -c 3-|while read -r tmp;do
+        find . -maxdepth 1 -print|cut -b 3-|pinyinmatch -f -c -- "$bname_real"|grep -v "^0"|cut -c 3-|while read -r tmp;do
         printf '%s%s%s\n' "$dname_real" "$sep" "$tmp"
         done
         ))
@@ -110,3 +110,19 @@ _filedir_xspec ()
 
 unset -f _py_save_function
 
+## for pinyinmatch self
+_pinyinmatch() {
+    local cur prev short_opts long_opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    short_opts="-h -c -f -F"
+    long_opts="--help --show_match_count --firstletter --firstletter-only"
+    
+    if [[ ${cur} == -* ]] ; then
+        COMPREPLY=( $(compgen -W "${short_opts} $long_opts" -- ${cur}) )
+        return 0
+    fi
+}
+
+complete -F _pinyinmatch pinyinmatch
