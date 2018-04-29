@@ -1,6 +1,6 @@
 LINUX_BASHCD=$(DESTDIR)/etc/bash_completion.d
 LINUX_BIN=$(DESTDIR)/usr/bin
-XCODE_SDK=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.8.sdk
+XCODE_SDK=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
 PLATFORM=$(shell uname)
 
 OBJS=pinyinmatch.o pinyin.o utf8vector.o linereader.o
@@ -23,9 +23,9 @@ pinyinmatch:${OBJS}
 
 install:	
 	@if [ "`uname`" = "Darwin" ];then \
-		test ! -e "/opt/local/etc/bash_completion.d" && echo 需要安装bash-completion && exit 1; \
+		test ! -e "/usr/local/etc/bash_completion.d" && echo 需要安装bash-completion && exit 1; \
 		cp pinyinmatch /usr/local/bin ;\
-		cp pinyin_completion /opt/local/etc/bash_completion.d/ ;\
+		cp pinyin_completion /usr/local/etc/bash_completion.d/ ;\
 	elif [ "`uname`" = "Linux" ];then \
 		install -d $(LINUX_BASHCD) ;\
 		echo install -d $(LINUX_BASHCD) ;\
