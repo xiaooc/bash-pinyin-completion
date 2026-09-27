@@ -24,6 +24,13 @@ results=$(zsh -fc 'source "$1"; cd "$2"; _pinyin_candidates 子目录/zg files' 
 
 zsh -fc 'autoload -Uz compinit; compinit -C; source "$1"; source "$1"; zstyle -a ":completion:*" completer values; [[ "${(j:,:)values}" == _complete,_pinyin_complete ]]' zsh "$script"
 
+default_install=$(make -n install-zsh)
+if [[ "$default_install" != *"$HOME/.local/bin/pinyinmatch"* ]] ||
+   [[ "$default_install" != *"$HOME/.local/share/bash-pinyin-completion/pinyin_completion.zsh"* ]]; then
+    echo "Zsh installation does not default to ~/.local" >&2
+    exit 1
+fi
+
 make -s MAC_PREFIX="$test_dir/prefix" install-zsh
 test -x "$test_dir/prefix/bin/pinyinmatch"
 test -f "$test_dir/prefix/share/bash-pinyin-completion/pinyin_completion.zsh"
