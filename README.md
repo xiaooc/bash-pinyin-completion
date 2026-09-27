@@ -5,42 +5,27 @@
   * 仅支持UTF-8编码环境
 
 ## 安装
-### ubuntu
-支持10.04 ~ 12.10版本从ppa安装
 
-    sudo add-apt-repository ppa:emptyhua/toolbox
-    sudo apt-get update
-    sudo apt-get install bash-pinyin-completion
+本项目用于 Bash，需要先安装并启用 bash-completion。
 
-然后新开一个终端，就可以使用拼音补齐了
-
-### Other Linux
-对于其他发行版本，只要安装了bash－completion都可以使用源码安装(已测的bash－completion最低版本为1.1)
-
-    git clone git://github.com/emptyhua/bash-pinyin-completion.git
-    cd bash-pinyin*
+    git clone https://github.com/xiaooc/bash-pinyin-completion.git
+    cd bash-pinyin-completion
     make
-    sudo make install
-    
-然后新开一个终端，就可以使用拼音补齐了
 
-### Mac OS X
-对于mac需要先安装 bash-completion
+### macOS（Homebrew）
 
-    sudo port install bash-completion
+macOS 自带 Bash 3.2，可安装对应的 bash-completion：
 
-然后编辑~/.bash_profile,把下面的代码贴进去
+    brew install bash-completion
+    printf '%s\n' '[[ -r "$(brew --prefix)/etc/profile.d/bash_completion.sh" ]] && . "$(brew --prefix)/etc/profile.d/bash_completion.sh"' >> ~/.bash_profile
+    make install
 
-    if [ -f /opt/local/etc/bash_completion ]; then
-    . /opt/local/etc/bash_completion
-    fi
+安装目录会使用 `brew --prefix`，Apple Silicon 通常为 `/opt/homebrew`，Intel Mac 通常为 `/usr/local`。如果使用其他前缀，可传入 `MAC_PREFIX`，例如 `make MAC_PREFIX=/opt/local install`。卸载时使用相同前缀：`make uninstall`。
 
-下载源码,并编译,编译之前根据自己的xcode安装目录修改Makefile中的XCODE_SDK变量
+### Linux
 
-    git clone git://github.com/emptyhua/bash-pinyin-completion.git
-    cd bash-pinyin*
-    make
+安装 bash-completion 后运行：
+
     sudo make install
 
-然后新开一个终端，就可以使用拼音补齐了
-
+新开一个 Bash 终端后即可使用拼音补全。macOS 默认的 Zsh 不会加载 Bash 补全脚本。

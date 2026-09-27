@@ -1,53 +1,38 @@
 LINUX_BASHCD=$(DESTDIR)/etc/bash_completion.d
 LINUX_BIN=$(DESTDIR)/usr/bin
-XCODE_SDK=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
 PLATFORM=$(shell uname)
-
 OBJS=pinyinmatch.o pinyin.o utf8vector.o linereader.o
-
-ifeq ($(PLATFORM),Darwin)
-	CFLAGS+=-isysroot $(XCODE_SDK)
-else
-	CFLAGS+=
-endif
+MAC_PREFIX ?= $(shell brew --prefix 2>/dev/null || printf /usr/local)
+MAC_BASH_COMPLETION_D=$(MAC_PREFIX)/etc/bash_completion.d
 
 all:pinyinmatch
 
 build:pinyinmatch
 
-pinyinmatch:${OBJS}
-	gcc -Wall $(CFLAGS) -std=c99 $^ -o $@
+pinyinmatch:$(OBJS)
+	$(CC) -Wall $(CFLAGS) -std=c99 $^ -o $@
 
 %.o:%.c
-	gcc -Wall $(CFLAGS) -std=c99 -c $^ -o $@
+	$(CC) -Wall $(CFLAGS) -O2 -std=c99 -c $< -o $@
 
-install:	
-	@if [ "`uname`" = "Darwin" ];then \
-		test ! -e "/usr/local/etc/bash_completion.d" && echo 需要安装bash-completion && exit 1; \
-		cp pinyinmatch /usr/local/bin ;\
-		cp pinyin_completion /usr/local/etc/bash_completion.d/ ;\
-	elif [ "`uname`" = "Linux" ];then \
-		install -d $(LINUX_BASHCD) ;\
-		echo install -d $(LINUX_BASHCD) ;\
-		install -d $(LINUX_BIN) ;\
-		echo install -d $(LINUX_BIN) ;\
-		install ./pinyin_completion $(LINUX_BASHCD) ;\
-		echo install ./pinyin_completion $(LINUX_BASHCD) ;\
-		install ./pinyinmatch $(LINUX_BIN) ;\
-		echo install ./pinyinmatch $(LINUX_BIN) ;\
-	fi
+ifeq ($(PLATFORM),Darwin)
+install: pinyinmatch
+	@test -f "$(MAC_PREFIX)/etc/profile.d/bash_completion.sh" -o -f "$(MAC_PREFIX)/etc/bash_completion" || { echo 'Install and enable bash-completion first.' >&2; exit 1; }
+	install -d "$(MAC_PREFIX)/bin" "$(MAC_BASH_COMPLETION_D)"
+	install -m 755 pinyinmatch "$(MAC_PREFIX)/bin/pinyinmatch"
+	install -m 644 pinyin_completion "$(MAC_BASH_COMPLETION_D)/pinyin_completion"
+
+uninstall:
+	rm -f "$(MAC_PREFIX)/bin/pinyinmatch" "$(MAC_BASH_COMPLETION_D)/pinyin_completion"
+else
+install: pinyinmatch
+	install -d $(LINUX_BASHCD) $(LINUX_BIN)
+	install -m 644 pinyin_completion $(LINUX_BASHCD)/pinyin_completion
+	install -m 755 pinyinmatch $(LINUX_BIN)/pinyinmatch
 
 uninstall:	
-	@if [ "`uname`" = "Darwin" ];then \
-		rm -fr /usr/local/bin/pinyinmatch  ;\
-		rm -fr /opt/local/etc/bash_completion.d/pinyin_completion ;\
-	elif [ "`uname`" = "Linux" ];then \
-		rm -fr $(LINUX_BASHCD)/pinyin_completion  ;\
-		echo rm -fr  $(LINUX_BASHCD)/pinyin_completion  ;\
-		rm -fr $(LINUX_BIN)/pinyinmatch  ;\
-		echo rm -fr $(LINUX_BIN)/pinyinmatch  ;\
-	fi
+	rm -f $(LINUX_BASHCD)/pinyin_completion $(LINUX_BIN)/pinyinmatch
+endif
 
 clean:
-	-rm -fr *.o
-	-rm -fr pinyinmatch
+	rm -f $(OBJS) pinyinmatch
