@@ -33,7 +33,7 @@ _compopt_o_filenames()
 
 fi
 
-#中文补齐函数
+#文件名补齐回退
 
 _py_completion()
 {
@@ -47,24 +47,20 @@ _py_completion()
 
     _expand || return 0
 
-    local dname_real bname_real dname bname tmp tmp2 sep
-    local -a rt
+    local dname_real bname_real dname bname tmp sep candidates matches old_dir single_quoted=0
 
-    if [[ "${cur:0:1}" == "'" ]]
-    then
-        #目录名部分
-        dname="$(dirname -- "${cur:1}")";
-        #文件名部分
-        bname="$(basename -- "${cur:1}")";
+    if [[ "${cur:0:1}" == "'" ]]; then
+        cur="${cur:1}"
+        single_quoted=1
+    fi
 
+    dname="$(dirname -- "$cur")"
+    bname="$(basename -- "$cur")"
+
+    if [[ "$single_quoted" == 1 ]]; then
         dname_real="$dname"
         bname_real="$bname"
     else
-        #目录名部分
-        dname="$(dirname -- "$cur")";
-        #文件名部分
-        bname="$(basename -- "$cur")";
-
         if [[ "${dname:0:1}" == "\"" ]]; then
             dname="${dname:1}"
         fi
@@ -87,26 +83,37 @@ _py_completion()
     fi
 
     test ! -d "$dname_real" && return 0;
+    old_dir=$PWD
     cd -- "$dname_real" || return 1;
 
     if [[ "$1" == "-d" ]];then
-        rt=(${rt[@]-} $(
-        compgen -d|pinyinmatch -f -c -- "$bname_real"|grep -v "^0"|cut -c 3-|while read -r tmp;do
-        printf '%s%s%s\n' "$dname_real" "$sep" "$tmp"
-        done
-        ))
+        candidates=$(compgen -d || :)
     else
-        rt=(${rt[@]-} $(
-        compgen -f|pinyinmatch -f -c -- "$bname_real"|grep -v "^0"|cut -c 3-|while read -r tmp;do
-        printf '%s%s%s\n' "$dname_real" "$sep" "$tmp"
-        done
-        ))
-        [ ${#rt[@]} -ne 0 ] && _compopt_o_filenames
+        candidates=$(compgen -f || :)
     fi
 
-    cd "$OLDPWD" || return 1;
+    matches=$(printf '%s\n' "$candidates" | pinyinmatch -f -c -- "$bname_real" |
+        awk -F '\t' '$1 > 0 { sub(/^[^\t]*\t/, ""); print }')
+    if [[ -z "$matches" && ${#COMPREPLY[@]} -eq 0 ]]; then
+        matches=$(printf '%s\n' "$candidates" | pinyinmatch -fi -- "$bname_real")
+    fi
+    if [[ -z "$matches" && ${#COMPREPLY[@]} -eq 0 ]]; then
+        matches=$(printf '%s\n' "$candidates" | pinyinmatch -T -- "$bname_real" | head -n 8)
+    fi
+    if [[ -z "$matches" && ${#COMPREPLY[@]} -eq 0 ]]; then
+        matches=$(printf '%s\n' "$candidates" | pinyinmatch -t -- "$bname_real" | head -n 8)
+    fi
 
-    COMPREPLY=( "${COMPREPLY[@]}" "${rt[@]}" )
+    if [[ -n "$matches" ]]; then
+        while IFS= read -r tmp; do
+            COMPREPLY+=("$dname_real$sep$tmp")
+        done <<< "$matches"
+        if [[ "$1" != "-d" ]]; then
+            _compopt_o_filenames
+        fi
+    fi
+
+    cd -- "$old_dir" || return 1;
 }
 
 if _py_save_function _comp_compgen_filedir _py_bak_filedir; then
@@ -143,8 +150,8 @@ _pinyinmatch() {
     local cur short_opts long_opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    short_opts="-h -c -f -F"
-    long_opts="--help --show_match_count --firstletter --firstletter-only"
+    short_opts="-h -c -f -F -i -t -T"
+    long_opts="--help --show-match-count --firstletter --firstletter-only --ignore-case --typo --typo-whole"
 
     if [[ ${cur} == -* ]]; then
         COMPREPLY=( $(compgen -W "${short_opts} $long_opts" -- "$cur") )

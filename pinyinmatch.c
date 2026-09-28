@@ -25,7 +25,7 @@ typedef enum {
     MatchModeFirstLetter
 } MatchMode;
 
-int match_line_with_keyword(const char *line, int line_length, const char *keyword, MatchMode mode)
+int match_line_with_keyword(const char *line, int line_length, const char *keyword, MatchMode mode, int ignore_case)
 {
     MYLOG("line_length %d", line_length);
 
@@ -45,8 +45,6 @@ int match_line_with_keyword(const char *line, int line_length, const char *keywo
         keyword_index ++;
     }
 
-    //printf("keyword length %d\n", keyword_length);
-
     int match_rt = 1;
     keyword_index = 0;
 
@@ -54,8 +52,6 @@ int match_line_with_keyword(const char *line, int line_length, const char *keywo
             && keyword_index < keyword_length)
     {
         keyword_char = keyword_uni[keyword_index];
-        //printf("keyword index %d\n", keyword_index);
-
         if (pinyin_ishanzi(line_char))
         {
             if (pinyin_ishanzi(keyword_char))
@@ -69,31 +65,28 @@ int match_line_with_keyword(const char *line, int line_length, const char *keywo
             else if (pinyin_isabc(keyword_char))
             {
                 keyword_char = pinyin_lowercase(keyword_char);
-                //printf("keyword_char %d\n", keyword_char);
                 const char **pinyins;
                 int count = pinyin_get_pinyins_by_unicode(line_char, &pinyins);
                 if (mode == MatchModeFirstLetter)
                 {
-                    int finded = 0;
+                    int found = 0;
                     for (int i = 0; i < count; i++)
                     {
-                        //printf("pinyin0 %d\n", pinyins[i][0]);
                         if (keyword_char == pinyins[i][0])
                         {
-                            finded = 1;
-                            //printf("matched !!!!\n");
+                            found = 1;
                             break;
                         }
                     }
 
-                    if (finded == 0)
+                    if (found == 0)
                         match_rt = 0;
                     else
                         match_hanzi_count ++;
                 }
                 else if (mode == MatchModeFull)
                 {
-                    int finded = 0;
+                    int found = 0;
                     for (int i = 0; i < count; i++)
                     {
                         int kindex_start = keyword_index;
@@ -115,13 +108,13 @@ int match_line_with_keyword(const char *line, int line_length, const char *keywo
                         
                         if (matched)
                         {
-                            finded = 1;
+                            found = 1;
                             keyword_index = kindex_start - 1;
                             break;
                         }
                     }
 
-                    if (finded == 0)
+                    if (found == 0)
                         match_rt = 0;
                     else
                         match_hanzi_count ++;
@@ -134,14 +127,15 @@ int match_line_with_keyword(const char *line, int line_length, const char *keywo
             }
             else
             {
-                //printf("not hanzi or abc %d\n", keyword_char);
                 match_rt = 0;
                 break;
             }
         }
         else
         {
-            if (line_char != keyword_char)
+            if (line_char != keyword_char &&
+                !(ignore_case && pinyin_isabc(line_char) && pinyin_isabc(keyword_char) &&
+                  pinyin_lowercase(line_char) == pinyin_lowercase(keyword_char)))
             {
                 match_rt = 0;
                 break;
@@ -164,6 +158,68 @@ int match_line_with_keyword(const char *line, int line_length, const char *keywo
         return match_hanzi_count;
 }
 
+// Compare the typed text with a candidate name or one of its prefixes.
+static int one_edit(const char *typed, int typed_length, const char *candidate, int candidate_length)
+{
+    int i = 0, j = 0, edits = 0;
+    while (i < typed_length && j < candidate_length)
+    {
+        if (pinyin_lowercase(typed[i]) == pinyin_lowercase(candidate[j]))
+        {
+            i++;
+            j++;
+            continue;
+        }
+
+        if (++edits > 1)
+            return 0;
+
+        if (typed_length == candidate_length && i + 1 < typed_length &&
+            pinyin_lowercase(typed[i]) == pinyin_lowercase(candidate[j + 1]) &&
+            pinyin_lowercase(typed[i + 1]) == pinyin_lowercase(candidate[j]))
+        {
+            i += 2;
+            j += 2;
+        }
+        else if (typed_length > candidate_length)
+            i++;
+        else if (typed_length < candidate_length)
+            j++;
+        else
+        {
+            i++;
+            j++;
+        }
+    }
+    return edits + (typed_length - i) + (candidate_length - j) == 1;
+}
+
+static int typo_match(const char *line, int line_length, const char *keyword, int whole_name)
+{
+    int keyword_length = 0;
+    while (keyword[keyword_length] != '\0')
+    {
+        if (!pinyin_isabc((unsigned char)keyword[keyword_length]))
+            return 0;
+        keyword_length++;
+    }
+    if (keyword_length < 3)
+        return 0;
+
+    for (int i = 0; i < line_length; i++)
+        if ((unsigned char)line[i] >= 128)
+            return 0;
+
+    if (whole_name)
+        return one_edit(keyword, keyword_length, line, line_length);
+
+    for (int length = keyword_length - 1; length <= keyword_length + 1; length++)
+        if (length <= line_length &&
+            one_edit(keyword, keyword_length, line, length))
+            return 1;
+    return 0;
+}
+
 void show_usage(char* bin) {
     printf("USAGE: %s [options] keyword\n\n", bin);
     printf("options:\n");
@@ -171,6 +227,9 @@ void show_usage(char* bin) {
     printf("\t-c --show_match_count  show match count\n");
     printf("\t-f --firstletter       first letter\n");
     printf("\t-F --firstletter-only  first letter only\n");
+    printf("\t-i --ignore-case       ignore ASCII letter case\n");
+    printf("\t-t --typo              suggest one-edit ASCII filename prefixes\n");
+    printf("\t-T --typo-whole        suggest one-edit whole ASCII filenames\n");
 }
 
 void guide_to_help(char* bin) {
@@ -182,6 +241,9 @@ int main(int argc, char **argv)
     int show_match_count = 0;
     int match_firstletter = 0;
     int match_firstletter_only = 0;
+    int ignore_case = 0;
+    int typo = 0;
+    int typo_whole = 0;
 
     static struct option long_options[] =
     {
@@ -189,13 +251,16 @@ int main(int argc, char **argv)
         {"show-match-count", no_argument, NULL, 'c'},
         {"firstletter", no_argument, NULL, 'f'},
         {"firstletter-only", no_argument, NULL, 'F'},
+        {"ignore-case", no_argument, NULL, 'i'},
+        {"typo", no_argument, NULL, 't'},
+        {"typo-whole", no_argument, NULL, 'T'},
         {0,0,0,0}
     };
 
     while(1)
     {
         int option_index = 0;
-        int c = getopt_long(argc, argv, "hcfF", long_options, &option_index);
+        int c = getopt_long(argc, argv, "hcfFitT", long_options, &option_index);
 
         if (c == -1) break;
 
@@ -213,6 +278,16 @@ int main(int argc, char **argv)
                 break;
             case 'F':
                 match_firstletter_only = 1;
+                break;
+            case 'i':
+                ignore_case = 1;
+                break;
+            case 't':
+                typo = 1;
+                break;
+            case 'T':
+                typo = 1;
+                typo_whole = 1;
                 break;
             default:
                 guide_to_help(argv[0]);
@@ -236,19 +311,24 @@ int main(int argc, char **argv)
     {
         const char *line = reader->line_buffer;
         int match_count = -1;
-        if (!match_firstletter_only)
+        if (typo)
         {
-            match_count = match_line_with_keyword(line, count, keyword, MatchModeFull);
+            if (typo_match(line, count, keyword, typo_whole))
+                match_count = 0;
+        }
+        else if (!match_firstletter_only)
+        {
+            match_count = match_line_with_keyword(line, count, keyword, MatchModeFull, ignore_case);
 
             if (match_count == -1 && match_firstletter)
             {
-                match_count = match_line_with_keyword(line, count, keyword, MatchModeFirstLetter);
+                match_count = match_line_with_keyword(line, count, keyword, MatchModeFirstLetter, ignore_case);
             }
 
         }
         else
         {
-            match_count = match_line_with_keyword(line, count, keyword, MatchModeFirstLetter);
+            match_count = match_line_with_keyword(line, count, keyword, MatchModeFirstLetter, ignore_case);
         }
 
         if (match_count != -1)

@@ -1,0 +1,43 @@
+#!/usr/bin/expect -f
+set timeout 5
+set script [lindex $argv 0]
+set directory [lindex $argv 1]
+set parent [lindex $argv 2]
+set binary_dir [file dirname $script]
+log_user 0
+
+spawn zsh -f
+expect -re {% }
+send -- "export PATH=$binary_dir:\$PATH\r"
+send -- "cd $directory\r"
+send -- "autoload -Uz compinit; compinit -C\r"
+send -- "source $script\r"
+send -- "PROMPT='TEST> '\r"
+expect "TEST> "
+
+send -- "cd wok\t"
+expect {
+    -re {\x1b\[7mwon} {}
+    timeout { puts stderr "multiple candidates did not open a selection menu on first Tab"; exit 1 }
+}
+send -- "\033\[B"
+send -- "\r\r"
+expect "TEST> "
+send -- "pwd\r"
+expect {
+    -re "$directory/work" {}
+    timeout { puts stderr "selected candidate was not work"; exit 1 }
+}
+expect "TEST> "
+
+send -- "cd $parent\r"
+expect "TEST> "
+send -- "cd down\t"
+send -- "\r"
+expect "TEST> "
+send -- "pwd\r"
+expect {
+    -re "$parent/Download" {}
+    timeout { puts stderr "single candidate was not completed directly"; exit 1 }
+}
+send -- "exit\r"
